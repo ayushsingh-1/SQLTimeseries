@@ -1,0 +1,207 @@
+Jul 31:
+
+select * from time_series.utilization;
+explain analyze select * from time_series.utilization;
+
+select u.event_time, u.server_id, u.cpu_utilization, u.free_memory, u.session_cnt from time_series.utilization as u where u.event_time between
+to_timestamp('2019-01-01 00:30:00','YYYY-MM-DD hh24:mi:ss') and to_timestamp('2019-01-01 01:00:00','YYYY-MM-DD hh24:mi:ss')
+
+select u.event_time, u.server_id, u.cpu_utilization, u.free_memory, u.session_cnt from time_series.utilization as u where u.event_time between 
+to_timestamp('2020-09-21 10:00:00','YYYY-MM-DD hh24:mi:ss') and to_timestamp ('2020-09-21 14:00:00','YYYY-MM-DD hh24:mi:ss') order by u.event_time, u.server_id
+
+select avg(u.cpu_utilization), avg(u.free_memory) from time_series.utilization as u where u.event_time between 
+to_timestamp('2019-03-03 22:00:00', 'YYYY-MM-DD hh24:mi:ss') and to_timestamp('2019-03-03 23:59:59','YYYY-MM-DD hh24:mi:ss') group by u.server_id
+
+Aug 3:
+
+select * from time_series.location_temp;
+select distinct location_id from time_series.location_temp order by location_id asc;
+
+select * from time_series.location_temp order by event_time asc;
+
+select * from time_series.location_temp where event_time between to_timestamp('2019-03-05 10:00:00','YYYY-MM-DD hh24:mi:ss') and 
+to_timestamp('2019-03-06 13:00:00','YYYY-MM-DD hh24:mi:ss') order by event_time asc;
+
+explain analyze select round(avg(lt.temp_celcius),2) as avg_temp, lt.location_id from time_series.location_temp as lt group by location_id order by location_id;
+
+create index idx_loc_temp_loc_id on time_series.location_temp(location_id);
+drop index time_series.idx_loc_temp_loc_id;
+
+Aug 6:
+
+drop index time_series.idx_loc_temp_id;
+create index idx_loc_temp_id on time_series.location_temp(location_id);
+explain analyze select location_id, round(avg(temp_celcius),2) from time_series.location_temp where location_id like 'loc2' group by location_id;
+
+select location_id, event_time, round(avg(temp_celcius),2) as temp1 from time_series.location_temp  
+where event_time between '2019-03-05 12:00:00' and '2019-03-06 23:59:59' group by location_id, event_time order by location_id asc;
+
+drop index time_series.idx_loc_temp_time_id;
+create index idx_loc_temp_time_id on time_series.location_temp(event_time, location_id);
+explain analyze select location_id, round(avg(temp_celcius),2) as temp1 from time_series.location_temp  
+where event_time between '2019-03-05 00:20:00' and '2019-03-05 00:40:00' group by location_id;
+
+Aug 14:
+
+select location_id as loc, round(avg(temp_celcius),2) as temprature from time_series.location_temp group by location_id limit 100;
+
+create index idx_location_temp_id on time_series.location_temp(location_id, event_time)
+
+explain analyze select location_id, event_time, round(avg(temp_celcius),2) as temprature from time_series.location_temp group by location_id, event_time;
+
+explain analyze select location_id, event_time, round(avg(temp_celcius),2) as temprature from time_series.location_temp
+where event_time between '05-05-2019 00:00:00' and '05-05-2019 06:00:00' group by location_id, event_time;
+
+drop index time_series.idx_location_temp_id;
+
+
+Aug 16:
+
+explain analyze select round(avg(temp_celcius),2) as temprature, location_id from time_series.location_temp 
+where event_time between '2019-03-05' and '2019-03-06' group by location_id;
+
+explain analyze select location_id, round(avg(temp_celcius),2) as temprature from time_series.location_temp_p
+where event_time between '2019-03-05' and '2019-03-06' group by location_id;
+
+explain analyze select location_id, round(avg(temp_celcius),2) as temprature from time_series.location_temp_p
+where event_hour between 0 and 4 group by location_id;
+
+Aug 27: 
+
+explain analyze select server_id, avg(cpu_utilization) from time_series.utilization where event_time between '2019-03-05' and '2019-03-06' group by server_id order by server_id asc;
+create index idx_util_time_serv on time_series.utilization(event_time, server_id)
+drop index time_series.idx_util_time_serv
+create index idx_util_time_serv1 on time_series.utilization(server_id, event_time);
+drop index time_series.idx_util_time_serv1
+
+Second index should not give any time improvements, because server_id is used to index first then event time. Select the precedence of a particular indexing columns on the basis of how they are being used in the where clause.
+
+create materialized view utilization_view as
+(select event_time, server_id, substring(cast(server_id as varchar),3,3) as department_id, cpu_utilization, free_memory, session_cnt from time_series.utilization);
+
+select distinct(department_id) from utilization_view order by department_id asc;
+
+select substring(cast(server_id as varchar),1,3) as department_id from time_series.utilization;
+
+drop materialized view utilization_view;
+
+Lead: 
+
+select server_id, department_id, cpu_utilization, lead(cpu_utilization) over(partition by server_id) from time_series.utilization_view where event_time between '2019-03-05' and '2019-03-06';
+
+select server_id, department_id, cpu_utilization, lead(cpu_utilization) over() from time_series.utilization_view where event_time between '2019-03-05' and '2019-03-06';
+
+select server_id, department_id, cpu_utilization from time_series.utilization_view where event_time between '2019-03-05' and '2019-03-06';
+
+Leading by 2 values ahead.
+select server_id, department_id, cpu_utilization, lead(cpu_utilization,2) over() from time_series.utilization_view where event_time between '2019-03-05' and '2019-03-06';
+
+Sep 3:
+
+select server_id, department_id, cpu_utilization, lead(cpu_utilization) over(partition by department_id) from time_series.utilization_view where event_time between '2019-03-06' and '2019-03-07'
+
+select server_id, session_cnt, free_memory, lag(free_memory) over(partition by session_cnt), department_id from time_series.utilization_view where event_time between '2019-03-15' and '2019-03-16'
+
+select server_id, department_id, free_memory, lead(free_memory) over(partition by department_id), cpu_utilization, lag(cpu_utilization) over(partition by department_id) from time_series.utilization_view limit 50
+
+select server_id, department_id, free_memory, lag(free_memory) over(partition by server_id order by free_memory desc) from time_series.utilization_view
+
+select server_id, session_cnt, cpu_utilization, rank() over(partition by server_id order by cpu_utilization desc) from time_series.utilization_view where event_time between '2019-03-08' and '2019-03-09'
+
+Sep 5:
+
+select server_id, session_cnt, cpu_utilization, rank() over(partition by server_id order by session_cnt) from time_series.utilization_view
+
+Common Table expression: Making a table before using it for a select statement, it's only available for that select statement, not as a permanent table. Done with the WITH keyword with in the parentheses, followed by the actual select statement where you actually wanna use it.
+
+with daily_avg_temp as (select date_trunc('day',event_time) as event_day, round(avg(temp_celcius),2) as avg_temp from time_series.location_temp group by event_day)
+select event_day, avg_temp from daily_avg_temp;
+
+with hourly_avg_temp as (select date_trunc('hour',event_time) as hours, round(avg(temp_celcius),2) as avg_temp from time_series.location_temp group by hours)
+select hours, avg_temp from hourly_avg_temp
+
+with daily_cpu as (select date_trunc('day', event_time) as days, concat(round(avg(cast(cpu_utilization as integer))*100,2),' %') as avg_cpu from time_series.utilization_view group by days)
+select days, avg_cpu from daily_cpu	
+
+select server_id, date_trunc('minutes', event_time) as minutes, cpu_utilization as curr_cpu, lead(cpu_utilization) over(partition by server_id) as lead_cpu, avg(cpu_utilization) over(partition by server_id) as avg_cpu
+from time_series. utilization_view 
+
+select location_id, date_trunc('minutes', event_time) as days, temp_celcius as curr_temp, lag(temp_celcius) over(partition by location_id) as lag_temp, avg(temp_celcius) over(partition by location_id)
+from time_series.location_temp 
+
+Sep 6:  
+
+with hourly_temp as (select  location_id, date_trunc('minute',event_time) as minutes, temp_celcius as curr_temp, lag(temp_celcius) over() as lag_temp from time_series.location_temp)
+select location_id, minutes, curr_temp, lag_temp from hourly_temp where minutes between '2019-03-05' and '2019-03-06' group by location_id, minutes, curr_temp, lag_temp
+
+with daily_avg_temp as (select date_trunc('day',event_time) as days, round(avg(temp_celcius),2) as daily_avg from time_series.location_temp group by days) 
+select days, daily_avg, (select dat2.daily_avg as lag_avg from daily_avg_temp dat2 where dat2.days= dat1.days - (interval '1' day)) from daily_avg_temp as dat1
+
+
+with daily_cpu as (select date_trunc('day', event_time) as days, round(avg(cast(cpu_utilization as integer)),2) as curr_avg_cpu from time_series.utilization_view group by days)
+select days, curr_avg_cpu, (select round((curr_avg_cpu),2) as lea_cpu from daily_cpu as dc2 where dc2.days= dc1.days + interval '1' day) from daily_cpu as dc1
+
+(Gives moving average cpu_util for every server for a moving hour window)
+with mov_avg_hour as (select event_time, server_id, avg(cpu_utilization) over(order by event_time rows between 12 preceding and current row) as hour_avg from time_series.utilization_view)
+select event_time, server_id, hour_avg from mov_avg_hour 
+
+
+(Gives an average for all servers for a particular hour)
+with avg_hour as (select date_trunc('hour',event_time) as hours, avg(cpu_utilization) as avg_cpu from time_series.utilization_view group by hours)
+select hours, avg_cpu, (select avg_cpu as lag_avg_cpu from avg_hour as ah2 where ah2.hours=ah1.hours - interval '1' hour)from avg_hour ah1
+
+Sep 9:
+
+with avg_day as (select date_trunc('day', event_time) as days, avg(cpu_utilization) as avgcpu, server_id from time_series.utilization_view group by server_id, days)
+select days, server_id, avgcpu, lead(avgcpu) over(), lag(avgcpu) over() from avg_day as ad1 group by server_id, days, avgcpu order by days, server_id
+
+with movingavghour as (select server_id, event_time, avg(cpu_utilization) over(order by event_time rows between 12 preceding and current row) as avgcpuhour from time_series.utilization_view)
+select server_id, event_time, avgcpuhour, lead(avgcpuhour) over() from movingavghour
+					  
+with dailyavgtemp as (select date_trunc('day', event_time) as days, round(avg(temp_celcius),2) as avgtemp, location_id from time_series.location_temp group by days, location_id)
+select location_id, days, avgtemp, lead(avgtemp) over() from dailyavgtemp order by location_id 
+
+with dailyavgtemp as (select date_trunc('day', event_time) as days, avg(temp_celcius) as avgcpu from time_series.location_temp group by days)
+select days, round(avgcpu,2), 
+(select round(avgcpu,2) *0.5 as prevday1 from dailyavgtemp dat2 where dat2.days=dat1.days - interval '1' day) +
+(select round(avgcpu,2) *0.333 as prevday2 from dailyavgtemp dat3 where dat3.days=dat1.days - interval '2' day) +
+(select round(avgcpu,2) *0.167 as prevday3 from dailyavgtemp dat4 where dat4.days=dat1.days - interval '3' day)
+from dailyavgtemp dat1
+
+-- linear regression formula: y=mx+b, y=predicted value, m=slope, x=input value, b=intercept
+
+regr_slope(y,x): y=value to be predicted, x=value inputted or value against y: This function calculates m.
+regr_intercept(y,x): y=value to be predicted, x=value inputted or value against y: This function calculates b.
+
+You multiply slope in select statement with any x value and add it to intercept value value to get a predicted y value.
+
+select (regr_slope(free_memory, cpu_utilization) * 0.1) + regr_intercept(free_memory, cpu_utilization) predicted_value from time_series.utilization_view
+
+Sep 12:
+
+with dailyavgtemp as (select date_trunc('day', event_time) as days, round(avg(temp_celcius),2) as avgtemp from time_series.location_temp group by days)
+select days, avgtemp,
+(select dat2.avgtemp * 0.5 as avgtemp1 from dailyavgtemp dat2 where dat2.days=dat1.days -interval '1' day)+
+(select dat3.avgtemp * 0.333 as avgtemp1 from dailyavgtemp dat3 where dat3.days=dat1.days -interval '2' day)+
+(select dat4.avgtemp * 0.167 as avgtemp1 from dailyavgtemp dat4 where dat4.days=dat1.days -interval '3' day)
+from dailyavgtemp dat1
+
+select regr_slope(session_cnt, cpu_utilization) *0.2 + regr_intercept(session_cnt, cpu_utilization) as y from time_series.utilization_view
+
+select regr_slope(session_cnt, cpu_utilization) * 0.1 + regr_intercept(session_cnt, cpu_utilization) as y from time_series.utilization_view
+select regr_slope(cpu_utilization, session_cnt) * 45 + regr_intercept(cpu_utilization, session_cnt) as predicted_cpu from time_series.utilization_view
+
+Sep 13: 
+
+with dailyavgcpu as (select date_trunc('day', event_time) as days, avg(cpu_utilization) as avgcpu from time_series.utilization_view group by days)
+select days, avgcpu ,
+(select avgcpu * 0.5 from dailyavgcpu dac2 where dac2.days=dac1.days - interval '1' day)+
+(select avgcpu * 0.333 from dailyavgcpu dac3 where dac3.days=dac1.days - interval '2' day)+
+(select avgcpu * 0.167 from dailyavgcpu dac4 where dac4.days=dac1.days - interval '3' day)
+from dailyavgcpu as dac1
+
+with movhouravg as (select date_trunc('minute',event_time) as hours, location_id, avg(temp_celcius) over(order by event_time rows between 12 preceding and current row) as movavg from time_series.location_temp)
+select hours, location_id, round(movavg,2) from movhouravg order by location_id, hours
+
+with movhouravg as (select event_time, location_id, avg(temp_celcius) over(order by event_time rows between 12 preceding and current row) as movavg from time_series.location_temp)
+select event_time, location_id, round(movavg,2) from movhouravg order by location_id, event_time
